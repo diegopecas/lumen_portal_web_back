@@ -24,8 +24,8 @@ class ContactosService
                 return;
             }
             
-            // Verificar honeypot (campo anti-spam invisible)
-            $honeypotEnabled = UtilsService::obtenerConfiguracion('honeypot_enabled', true);
+            // Verificar honeypot usando ConfiguracionService
+            $honeypotEnabled = ConfiguracionService::obtenerConfiguracion('honeypot_enabled', true);
             if ($honeypotEnabled && !empty($datos->honeypot)) {
                 UtilsService::log("Posible spam detectado - Honeypot lleno", 'warning');
                 UtilsService::responderJSON([
@@ -39,8 +39,8 @@ class ContactosService
             $ipCliente = UtilsService::obtenerIPCliente();
             $userAgent = UtilsService::obtenerUserAgent();
             
-            // Verificar rate limit por IP
-            $limitePorHora = UtilsService::obtenerConfiguracion('contacto_limite_por_hora', 3);
+            // Verificar rate limit por IP usando ConfiguracionService
+            $limitePorHora = ConfiguracionService::obtenerConfiguracion('contacto_limite_por_hora', 3);
             if (!UtilsService::verificarRateLimit('contactos', $ipCliente, 1, $limitePorHora)) {
                 UtilsService::log("Rate limit excedido para IP: $ipCliente", 'warning');
                 UtilsService::responderJSON([
@@ -101,8 +101,8 @@ class ContactosService
                 'email' => $email
             ]);
             
-            // Obtener URL de Calendly desde configuración
-            $calendlyUrl = UtilsService::obtenerConfiguracion('calendly_url');
+            // Obtener URL de Calendly usando ConfiguracionService
+            $calendlyUrl = ConfiguracionService::obtenerConfiguracion('calendly_url');
             
             UtilsService::responderJSON([
                 'success' => true,

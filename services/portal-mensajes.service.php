@@ -1,32 +1,10 @@
 <?php
 /**
  * Servicio de mensajes IA para visitantes del portal de Lumen
- * Este servicio genera mensajes para visitantes anónimos (sin login)
+ * REFACTORIZADO para usar ConfiguracionService
  */
 class PortalMensajes
 {
-    /**
-     * Obtener la IP real del cliente
-     */
-    private static function obtenerIPCliente()
-    {
-        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-            $ip = $_SERVER['HTTP_CLIENT_IP'];
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED'])) {
-            $ip = $_SERVER['HTTP_X_FORWARDED'];
-        } elseif (!empty($_SERVER['HTTP_FORWARDED_FOR'])) {
-            $ip = $_SERVER['HTTP_FORWARDED_FOR'];
-        } elseif (!empty($_SERVER['HTTP_FORWARDED'])) {
-            $ip = $_SERVER['HTTP_FORWARDED'];
-        } else {
-            $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        }
-
-        return trim($ip);
-    }
-
     /**
      * Obtener mensaje para visitante del portal
      */
@@ -34,39 +12,42 @@ class PortalMensajes
     {
         try {
             $db = Flight::db();
-            $ipCliente = self::obtenerIPCliente();
+            $ipCliente = UtilsService::obtenerIPCliente();
 
             error_log("=== MENSAJE PORTAL - IP: " . $ipCliente . " ===");
 
             // Verificar y resetear contador diario
             self::verificarYResetearContador($db);
 
-            // Obtener configuración
-            $config = self::obtenerConfiguracion($db);
+            // Obtener configuración usando ConfiguracionService
+            $estadoServicio = ConfiguracionService::obtenerConfiguracion('estado_servicio', 'pausado');
+            $limiteDiario = ConfiguracionService::obtenerConfiguracion('limite_diario', 100);
+            $mensajesGeneradosHoy = ConfiguracionService::obtenerConfiguracion('mensajes_generados_hoy', 0);
+            $geminiApiKey = ConfiguracionService::obtenerConfiguracion('gemini_api_key');
 
             // Verificar estado del servicio
-            if ($config['estado_servicio'] !== 'activo') {
+            if ($estadoServicio !== 'activo') {
                 error_log("Servicio pausado");
                 return self::responderConFallback($ipCliente, 'servicio_pausado');
             }
 
             // Verificar límite diario
-            if ((int)$config['mensajes_generados_hoy'] >= (int)$config['limite_diario']) {
+            if ((int)$mensajesGeneradosHoy >= (int)$limiteDiario) {
                 error_log("Límite diario alcanzado");
                 return self::responderConFallback($ipCliente, 'limite_alcanzado');
             }
 
             // Verificar API key
-            if (empty($config['gemini_api_key'])) {
+            if (empty($geminiApiKey)) {
                 error_log("API Key no configurada");
                 return self::responderConFallback($ipCliente, 'api_key_faltante');
             }
 
             // Generar mensaje con Gemini
-            $mensajeGenerado = self::generarMensajeConGemini($config['gemini_api_key']);
+            $mensajeGenerado = self::generarMensajeConGemini($geminiApiKey);
 
             if ($mensajeGenerado['success']) {
-                self::incrementarContador($db);
+                self::incrementarContador();
 
                 Flight::json([
                     'success' => true,
@@ -81,7 +62,7 @@ class PortalMensajes
 
         } catch (Exception $e) {
             error_log("ERROR en obtenerMensajeVisitante: " . $e->getMessage());
-            return self::responderConFallback(self::obtenerIPCliente(), 'error_sistema');
+            return self::responderConFallback(UtilsService::obtenerIPCliente(), 'error_sistema');
         }
     }
 
@@ -203,45 +184,26 @@ class PortalMensajes
     }
 
     /**
-     * Obtener configuración desde la BD (usa la misma tabla que el otro proyecto)
-     */
-    private static function obtenerConfiguracion($db)
-    {
-        $stmt = $db->prepare("SELECT clave, valor FROM configuracion_ia");
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $config = [];
-        foreach ($rows as $row) {
-            $config[$row['clave']] = $row['valor'];
-        }
-
-        return $config;
-    }
-
-    /**
      * Verificar y resetear contador si es un nuevo día
      */
     private static function verificarYResetearContador($db)
     {
-        $stmt = $db->prepare("SELECT valor FROM configuracion_ia WHERE clave = 'fecha_ultimo_reset'");
-        $stmt->execute();
-        $fechaUltimoReset = $stmt->fetchColumn();
-
+        $fechaUltimoReset = ConfiguracionService::obtenerConfiguracion('fecha_ultimo_reset');
         $fechaHoy = date('Y-m-d');
 
         if ($fechaUltimoReset !== $fechaHoy) {
             error_log("Reseteando contador - Nuevo día detectado");
-            $db->prepare("UPDATE configuracion_ia SET valor = '0' WHERE clave = 'mensajes_generados_hoy'")->execute();
-            $db->prepare("UPDATE configuracion_ia SET valor = ? WHERE clave = 'fecha_ultimo_reset'")->execute([$fechaHoy]);
+            ConfiguracionService::actualizarConfiguracion('mensajes_generados_hoy', '0');
+            ConfiguracionService::actualizarConfiguracion('fecha_ultimo_reset', $fechaHoy);
         }
     }
 
     /**
      * Incrementar contador de mensajes generados
      */
-    private static function incrementarContador($db)
+    private static function incrementarContador()
     {
-        $db->prepare("UPDATE configuracion_ia SET valor = valor + 1 WHERE clave = 'mensajes_generados_hoy'")->execute();
+        $mensajesActuales = ConfiguracionService::obtenerConfiguracion('mensajes_generados_hoy', 0);
+        ConfiguracionService::actualizarConfiguracion('mensajes_generados_hoy', $mensajesActuales + 1);
     }
 }
