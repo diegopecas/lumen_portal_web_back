@@ -245,6 +245,8 @@ class ConfiguracionService
             $horarios = self::obtenerConfiguracion('contacto_horarios', []);
             $direccion = self::obtenerConfiguracion('contacto_direccion', '');
             $mapsUrl = self::obtenerConfiguracion('contacto_maps_url', '');
+            $instagram = self::obtenerConfiguracion('contacto_instagram', '');
+            $facebook = self::obtenerConfiguracion('contacto_facebook', '');
 
             // Estructurar la respuesta
             $resultado = [
@@ -259,6 +261,10 @@ class ConfiguracionService
                 'ubicacion' => [
                     'direccion' => $direccion,
                     'mapsUrl' => $mapsUrl
+                ],
+                'redesSociales' => [
+                    'instagram' => $instagram,
+                    'facebook' => $facebook
                 ]
             ];
 
