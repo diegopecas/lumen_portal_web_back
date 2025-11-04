@@ -6,9 +6,9 @@
 
 // Configuración de base de datos
 define('DB_HOST', '92.205.2.161');
-define('DB_NAME', 'secretariadev');
-define('DB_USERNAME', 'user_secretaria');
-define('DB_PASSWORD', 'pw_secretaria');
+define('DB_NAME', 'lumen');
+define('DB_USERNAME', 'lumen-admin');
+define('DB_PASSWORD', 'm_deEi1U2Bjl');
 define('DB_CHARSET', 'utf8mb4');
 
 // Construir DSN
